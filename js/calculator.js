@@ -1,9 +1,12 @@
-/* global Option */
+/* global math, Option */
 
-import * as Units from './units.js'
 import { air } from './media.js'
+import {
+  lengthUnits, areaUnits, flowUnits, velocityUnits, frictionLossUnits,
+  pressureDropUnits
+} from './units.js'
 
-const ROUGHNESS = 0.1 / 1000 // 0.1 mm / 1000 mm/m = 0.0001 m
+const ROUGHNESS = math.unit(0.1, 'mm')
 // https://de.wikipedia.org/wiki/Rohrreibungszahl
 
 const widthField = document.querySelector('input#width')
@@ -23,27 +26,31 @@ const flowUnit = document.querySelector('select#flowUnit')
 const velocityField = document.querySelector('input#velocity')
 const velocityUnit = document.querySelector('select#velocityUnit')
 const reynoldsField = document.querySelector('input#reynolds')
-// reynoldsUnit = dimensionless
 const frictionFactorField = document.querySelector('input#frictionFactor')
-// frictionFactorUnit = dimensionless
 const frictionLossField = document.querySelector('input#frictionLoss')
 const frictionLossUnit = document.querySelector('select#frictionLossUnit')
 const pressureDropField = document.querySelector('input#pressureDrop')
 const pressureDropUnit = document.querySelector('select#pressureDropUnit')
 
 // Funtions
-function calcFrictionFactor (re, dh, k, maxIterations = 100, maxDifference = 1e-6) {
+function calcFrictionFactor (reynolds, hydraulicDiameter, roughness, maxIterations = 100, maxDifference = 1e-6) {
   // https://de.wikipedia.org/wiki/Rohrreibungszahl
   // 1 / √λ = -2 * log10([2.51 / (Re * √λ)] + [k / (3.71 * dh)])
   // √λ = 1 / -2 * log10(...)
   // λ = (1 / -2 * log10(...))²
+  // Setup dimensionless variables for calculation
+  const re = reynolds
+  const commonSIUnit = 'm'
+  const dh = hydraulicDiameter.toNumber(commonSIUnit)
+  const k = roughness.toNumber(commonSIUnit)
+  // Perform calculation
   if (re < 2300) { // laminar
     return 64 / re
   } else { // turbulent
-    var lambda = 0.02
-    var previousLambda = 0.02
-    var difference = Infinity
-    var iteration = 0
+    let lambda = 0.02
+    let previousLambda = 0.02
+    let difference = Infinity
+    let iteration = 0
     do {
       iteration++
       const leftTerm = 2.51 / (re * Math.sqrt(previousLambda))
@@ -75,41 +82,29 @@ function formatNumber (original, precision = 3) {
 
 function calculate () {
   // read inputs
-  const widthMeter = parseFloat(widthField.value) * widthUnit.value
-  const heightMeter = parseFloat(heightField.value) * heightUnit.value
-  const lengthMeter = parseFloat(lengthField.value) * lengthUnit.value
-  const flowQubicMeterPerSecond = parseFloat(flowField.value) * flowUnit.value
+  const width = math.unit(parseFloat(widthField.value), widthUnit.value)
+  const height = math.unit(parseFloat(heightField.value), heightUnit.value)
+  const length = math.unit(parseFloat(lengthField.value), lengthUnit.value)
+  const flow = math.unit(parseFloat(flowField.value), flowUnit.value)
   // calculate
-  const crossSectionSquaremeter = widthMeter * heightMeter
-  const crossSectionOutput = crossSectionSquaremeter / crossSectionUnit.value
-  const circumferenceMeter = 2 * (widthMeter + heightMeter)
-  const circumferenceOutput = circumferenceMeter / circumferenceUnit.value
-  const hydraulicDiameterMeter = 4 * crossSectionSquaremeter / circumferenceMeter
-  const hydraulicDiameterOutput = hydraulicDiameterMeter / hydraulicDiameterUnit.value
-  const velocityMeterPerSecond = flowQubicMeterPerSecond / crossSectionSquaremeter
-  const velocityOutput = velocityMeterPerSecond / velocityUnit.value
-  // Re = (rho * v * dh) / eta = (v * dh) / nu
-  // https://de.wikipedia.org/wiki/Reynolds-Zahl
-  const reynolds = velocityMeterPerSecond * hydraulicDiameterMeter / air.kinematicViscosity.value
-  const frictionFactor = calcFrictionFactor(reynolds, hydraulicDiameterMeter, ROUGHNESS)
-  // R = dp/L = lambda/D * rho/2 * v²
-  const frictionLossPascalPerMeter = frictionFactor / hydraulicDiameterMeter * air.density.value / 2 * Math.pow(velocityMeterPerSecond, 2)
-  const frictionLossOutput = frictionLossPascalPerMeter / frictionLossUnit.value
-  // dp = R * L
-  const pressureDropPascal = frictionLossPascalPerMeter * lengthMeter
-  const pressureDropOutput = pressureDropPascal / pressureDropUnit.value
-
-  console.log(`length = ${lengthMeter}`)
+  const crossSection = math.multiply(width, height) // = wdith * height
+  const circumference = math.multiply(2, math.add(width, height)) // = 2 * (width + height)
+  const hydraulicDiameter = math.divide(math.multiply(4, crossSection), circumference) // 4 * crossSection / circumference
+  const velocity = math.divide(flow, crossSection) // flow / crossSection
+  const reynolds = math.divide(math.multiply(velocity, hydraulicDiameter), air.kinematicViscosity) // velocity * hydraulicDiameter / kinematicViscosity
+  const frictionFactor = calcFrictionFactor(reynolds, hydraulicDiameter, ROUGHNESS)
+  const frictionLoss = math.multiply(math.divide(frictionFactor, hydraulicDiameter), math.divide(air.density, 2), math.pow(velocity, 2)) // frictionFactor / hydraulicDiameter * density / 2 * velocity^2
+  const pressureDrop = math.multiply(frictionLoss, length) // frictionLoss * length
 
   // write outputs
-  crossSectionField.value = formatNumber(crossSectionOutput)
-  circumferenceField.value = formatNumber(circumferenceOutput)
-  hydraulicDiameterField.value = formatNumber(hydraulicDiameterOutput)
-  velocityField.value = formatNumber(velocityOutput)
+  crossSectionField.value = formatNumber(crossSection.toNumber(crossSectionUnit.value))
+  circumferenceField.value = formatNumber(circumference.toNumber(circumferenceUnit.value))
+  hydraulicDiameterField.value = formatNumber(hydraulicDiameter.toNumber(hydraulicDiameterUnit.value))
+  velocityField.value = formatNumber(velocity.toNumber(velocityUnit.value))
   reynoldsField.value = formatNumber(reynolds)
   frictionFactorField.value = formatNumber(frictionFactor)
-  frictionLossField.value = formatNumber(frictionLossOutput)
-  pressureDropField.value = formatNumber(pressureDropOutput)
+  frictionLossField.value = formatNumber(frictionLoss.toNumber(frictionLossUnit.value))
+  pressureDropField.value = formatNumber(pressureDrop.toNumber(pressureDropUnit.value))
 }
 
 function setup () {
@@ -118,55 +113,34 @@ function setup () {
   widthField.value = 1.0
   widthField.min = 0.1
   widthField.step = 0.1
-  Object.entries(Units.lengthUnits).forEach(([name, unit]) => {
-    widthUnit.options.add(new Option(unit.symbol, unit.factor))
-  })
+  lengthUnits.forEach(unit => widthUnit.options.add(new Option(unit)))
   // Height row
   heightField.value = 1.0
   heightField.min = 0.1
   heightField.step = 0.1
-  Object.entries(Units.lengthUnits).forEach(([name, unit]) => {
-    heightUnit.options.add(new Option(unit.symbol, unit.factor))
-  })
+  lengthUnits.forEach(unit => heightUnit.options.add(new Option(unit)))
   // Length row
   lengthField.value = 1.0
   lengthField.min = 0.1
   lengthField.step = 0.1
-  Object.entries(Units.lengthUnits).forEach(([name, unit]) => {
-    lengthUnit.options.add(new Option(unit.symbol, unit.factor))
-  })
+  lengthUnits.forEach(unit => lengthUnit.options.add(new Option(unit)))
   // Circumference row
-  Object.entries(Units.lengthUnits).forEach(([name, unit]) => {
-    circumferenceUnit.options.add(new Option(unit.symbol, unit.factor))
-  })
+  lengthUnits.forEach(unit => circumferenceUnit.options.add(new Option(unit)))
   // Cross Section row
-  Object.entries(Units.areaUnits).forEach(([name, unit]) => {
-    crossSectionUnit.options.add(new Option(unit.symbol, unit.factor))
-  })
+  areaUnits.forEach(unit => crossSectionUnit.options.add(new Option(unit)))
   // Hydraulic Diameter row
-  Object.entries(Units.lengthUnits).forEach(([name, unit]) => {
-    hydraulicDiameterUnit.options.add(new Option(unit.symbol, unit.factor))
-  })
+  lengthUnits.forEach(unit => hydraulicDiameterUnit.options.add(new Option(unit)))
   // Flow row
   flowField.value = 1.0
   flowField.min = 0.1
   flowField.step = 0.1
-  Object.entries(Units.flowUnits).forEach(([name, unit]) => {
-    flowUnit.options.add(new Option(unit.symbol, unit.factor))
-  })
+  flowUnits.forEach(unit => flowUnit.options.add(new Option(unit)))
   // Velocity row
-  Object.entries(Units.velocityUnits).forEach(([name, unit]) => {
-    velocityUnit.options.add(new Option(unit.symbol, unit.factor))
-  })
+  velocityUnits.forEach(unit => velocityUnit.options.add(new Option(unit)))
   // Friction Loss row
-  Object.entries(Units.frictionLossUnits).forEach(([name, unit]) => {
-    frictionLossUnit.options.add(new Option(unit.symbol, unit.factor))
-  })
-
+  frictionLossUnits.forEach(unit => frictionLossUnit.options.add(new Option(unit)))
   // Pressure Drop row
-  Object.entries(Units.pressureDropUnits).forEach(([name, unit]) => {
-    pressureDropUnit.options.add(new Option(unit.symbol, unit.factor))
-  })
+  pressureDropUnits.forEach(unit => pressureDropUnit.options.add(new Option(unit)))
 
   // register event handlers
   widthField.onchange = calculate
