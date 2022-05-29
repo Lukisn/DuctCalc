@@ -2,8 +2,7 @@
 
 import { air } from './media.js'
 import {
-  lengthUnits, areaUnits, flowUnits, velocityUnits, frictionLossUnits,
-  pressureDropUnits
+  lengthUnits, areaUnits, flowUnits, velocityUnits, frictionUnits, pressureUnits
 } from './units.js'
 
 // Constants
@@ -39,11 +38,11 @@ const pressureDropUnit = document.querySelector('select#pressureDropUnit')
 /**
  * Calculate the friction factor from values with untis using
  * {@link calculateFrictionFactor}.
- * @param {*} reynolds - reynolds number of the flow (unitless)
- * @param {*} hydraulicDiameter - hydraulic diameter of the conduit (length)
- * @param {*} roughness - relative roughness of the conduit (length)
- * @param {*} maxIterations - maximum number of iterations to perform
- * @param {*} maxDifference - maximum difference to allow for stopping the
+ * @param {number} reynolds - reynolds number of the flow (unitless)
+ * @param {Unit} hydraulicDiameter - hydraulic diameter of the conduit (length)
+ * @param {Unit} roughness - relative roughness of the conduit (length)
+ * @param {number} maxIterations - maximum number of iterations to perform
+ * @param {number} maxDifference - maximum difference to allow for stopping the
  * iteration
  * @returns friction factor (unitless)
  */
@@ -176,9 +175,9 @@ function setup () {
   // Velocity row
   velocityUnits.forEach(unit => velocityUnit.options.add(new Option(unit)))
   // Friction Loss row
-  frictionLossUnits.forEach(unit => frictionLossUnit.options.add(new Option(unit)))
+  frictionUnits.forEach(unit => frictionLossUnit.options.add(new Option(unit)))
   // Pressure Drop row
-  pressureDropUnits.forEach(unit => pressureDropUnit.options.add(new Option(unit)))
+  pressureUnits.forEach(unit => pressureDropUnit.options.add(new Option(unit)))
   // Register event handlers
   widthField.onchange = calculate
   widthUnit.onchange = calculate
